@@ -3,7 +3,7 @@ from opcua import Client
 # Specify the OPC UA server endpoint
 opcua_endpoint = "opc.tcp://your_opcua_server_endpoint"
 
-# Specify the node ID for your root node (e.g., 85)
+# Specify the node ID for the root node you want to start from
 root_node_id = "85"
 
 # Function to recursively explore and retrieve data from nodes
@@ -16,7 +16,7 @@ def retrieve_node_hierarchy(node, depth=0):
             value = node.get_value()
             print(f"{'  ' * depth}Node: {node.get_browse_name()}. Value: {value}")
             
-            # If the node has children (under "Objects"), explore them
+            # If the node has children, explore them
             children = node.get_children()
             for child in children:
                 retrieve_node_hierarchy(child, depth + 1)
