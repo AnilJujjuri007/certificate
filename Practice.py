@@ -3,6 +3,9 @@ from opcua import Client
 # Specify the OPC UA server endpoint
 opcua_endpoint = "opc.tcp://your_opcua_server_endpoint"
 
+# Specify the node ID for your root node (e.g., 85)
+root_node_id = "85"
+
 # Function to recursively explore and retrieve data from nodes
 def retrieve_node_hierarchy(node, depth=0):
     try:
@@ -25,8 +28,8 @@ try:
     client = Client(opcua_endpoint)
     client.connect()
 
-    # Start exploring the hierarchy from the root node
-    root_node = client.get_root_node()
+    # Get the root node using the specified node ID
+    root_node = client.get_node(root_node_id)
     retrieve_node_hierarchy(root_node)
 
 except Exception as e:
