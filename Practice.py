@@ -1,39 +1,31 @@
 from opcua import Client
-from opcua.common.results import Good, BadNoMatch
+from opcua.common import ua
 
 # Specify the OPC UA server endpoint
-opcua_endpoint = "opc.tcp://BLRTSL00330.lnties.com:53530/OPCUA/SimulationServer"
+opcua_endpoint = "opc.tcp://your_opcua_server_endpoint"
 
-# Function to recursively explore and retrieve data from nodes
-def retrieve_node_hierarchy(node, depth=0):
-    try:
-        # Read the value of the current node
-        value_attribute = node.get_attributes(["Value"])
-        if value_attribute and value_attribute[0].Value.Status == Good:
-            value = value_attribute[0].Value.Value
-            print(f"{'  ' * depth}Node: {node.get_browse_name()}. Value: {value}")
+# Function to determine the type of a node
+def get_node_type(node):
+    if node.get_node_class() == ua.NodeClass.Object:
+        return "Object"
+    elif node.get_node_class() == ua.NodeClass.Variable:
+        return "Variable"
+    elif node.get_node_class() == ua.NodeClass.Folder:
+        return "Folder"
+    else:
+        return "Unknown"  # You can extend this for other node types
 
-        # If the node has children, explore them
-        children = node.get_children()
-        for child in children:
-            retrieve_node_hierarchy(child, depth + 1)
-    except BadNoMatch:
-        print(f"Node: {node.get_browse_name()} does not have a 'Value' attribute.")
-    except Exception as e:
-        print(f"Error: {str(e)}")
+# Read nodes from the CSV file
+with open('nodes.csv', 'r') as csvfile:
+    for row in csvfile:
+        node_id = row.strip()  # Assuming each line in the CSV contains a node ID
 
-try:
-    # Create a client connection
-    client = Client(opcua_endpoint)
-    client.connect()
+        try:
+            with Client(opcua_endpoint) as client:
+                client.connect()
+                node = client.get_node(node_id)
 
-    # Get the root node object
-    root_node = client.get_node("ns=0;i=85")
-
-    retrieve_node_hierarchy(root_node)
-
-except Exception as e:
-    print(f"Error connecting to the OPC UA server: {str(e)}")
-
-# Ensure to disconnect from the OPC UA server at the end
-client.disconnect()
+                node_type = get_node_type(node)
+                print(f"{node_id} is a {node_type}")
+        except Exception as e:
+            print(f"Error reading node {node_id}: {str(e)}")
