@@ -22,17 +22,22 @@ def get_node_type(node):
 def upload_and_process_csv():
     file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
     if file_path:
-        with open(file_path, 'r') as csvfile:
-            for row in csvfile:
-                node_id = row.strip()
-                try:
-                    with Client(opcua_endpoint) as client:
-                        client.connect()
-                        node = client.get_node(node_id)
-                        node_type = get_node_type(node)
-                        print(f"{node_id} is a {node_type}")
-                except Exception as e:
-                    print(f"Error reading node {node_id}: {str(e)}")
+        try:
+            with Client(opcua_endpoint) as client:
+                client.connect()
+                with open(file_path, 'r') as csvfile:
+                    for row in csvfile:
+                        node_id = row.strip()
+                        try:
+                            node = client.get_node(node_id)
+                            node_type = get_node_type(node)
+                            print(f"{node_id} is a {node_type}")
+                        except Exception as e:
+                            print(f"Error reading node {node_id}: {str(e)}")
+                # Disconnect the OPC UA client after processing
+                client.disconnect()
+        except Exception as e:
+            print(f"Error connecting to the OPC UA server: {str(e)}")
 
 # Create a Tkinter window
 window = tk.Tk()
