@@ -49,3 +49,35 @@ upload_button.pack()
 
 # Start the Tkinter main loop
 window.mainloop()
+
+
+Error reading node Node: ('Error parsing string Node', ValueError('not enough values to unpack (expected 2, got 1)'))
+Node Name: Constant, NodeId: NumericNodeId(ns=3;i=1001), Value: None
+ns=3;i=1001 is a None
+Node Name: Counter, NodeId: NumericNodeId(ns=3;i=1002), Value: 28
+ns=3;i=1002 is a None
+Node Name: Random, NodeId: NumericNodeId(ns=3;i=1003), Value: -0.6216944
+ns=3;i=1003 is a None
+Node Name: Sawtooth, NodeId: NumericNodeId(ns=3;i=1004), Value: -1.6
+ns=3;i=1004 is a None
+Node Name: Sinusoid, NodeId: NumericNodeId(ns=3;i=1005), Value: -0.4158233
+ns=3;i=1005 is a None
+Node Name: Square, NodeId: NumericNodeId(ns=3;i=1006), Value: 2.0
+ns=3;i=1006 is a None
+Node Name: Triangle, NodeId: NumericNodeId(ns=3;i=1007), Value: -0.2666666
+ns=3;i=1007 is a None
+QualifiedName(3:energymeter) is an object having following child nodes:
+QualifiedName(3:plc) is an object having following child nodes:
+Node Name: current, NodeId: FourByteNodeId(ns=3;i=1011), Value: 122.6983
+Node Name: voltage, NodeId: FourByteNodeId(ns=3;i=1012), Value: 118.9153
+Node Name: power, NodeId: FourByteNodeId(ns=3;i=1013), Value: 351.1306
+Node Name: energy, NodeId: FourByteNodeId(ns=3;i=1014), Value: 129.5899
+QualifiedName(3:Data) is an object having following child nodes:
+Node Name: conerter, NodeId: FourByteNodeId(ns=3;i=1016), Value: -0.6216944
+Node Name: voltage, NodeId: FourByteNodeId(ns=3;i=1015), Value: 208.5972
+ns=3;i=1008 is a None
+QualifiedName(3:Data) is an object having following child nodes:
+Node Name: conerter, NodeId: FourByteNodeId(ns=3;i=1016), Value: -0.6216944
+ns=3;i=1010 is a None
+Error reading node : Could not find identifier in string: 
+Error connecting to the OPC UA server: [WinError 10038] An operation was attempted on something that is not a socket
