@@ -169,6 +169,33 @@ def setConnection(twinObj, edgeClient, Message):
     myedgeclient = edgeClient
     myMessage = Message
 
+def create_client():
+    try:
+        client = IoTHubModuleClient.create_from_connection_string(CONNECTION_STRING)
+        client.connect()
+
+        def twin_patch_handler(twin_patch):
+            print("Twin patch received:")
+            print(twin_patch)
+            # Add logic to handle desired properties update
+
+        client.on_twin_desired_properties_patch_received = twin_patch_handler
+
+    except Exception as e:
+        print("Error occurred:", e)
+        return
+
+    try:
+        twin = client.get_twin()
+        print("Twin:", twin)
+        connector.setConnection(twin, client, Message)
+    except Exception as e:
+        print("Error retrieving twin:", e)
+
+if __name__ == "__main__":
+    create_client()
+
+
     global twin
     twin = twinObj
 
