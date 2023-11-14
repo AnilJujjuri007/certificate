@@ -1,192 +1,42 @@
-import connector
-import time
-from azure.iot.device import IoTHubModuleClient, Message
-from azure.iot.device import IoTHubDeviceClient
-# import logging
-
-# # Configure the logger
-# logging.basicConfig(filename='example.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# # Example log messages
-# logging.debug('This is a debug message')
-
-
-CONNECTION_STRING = "HostName=vanderlende-hub-dev-001.azure-devices.net;DeviceId=edgedevice89;ModuleId=twintests;SharedAccessKey=oBrMLa9w8JcduAjh55TexvKClykDhaugjQO3tQwh7lo="
-
-
-def create_client():
-    # Instantiate client
-    try:
-
-        # client=IoTHubModuleClient.create_from_edge_environment()
-
-        client = IoTHubModuleClient.create_from_connection_string(CONNECTION_STRING)
-        client.connect()
-        print(client)
-
-    except Exception as e:
-        print("Error occured:", e)
-
-    # def twin_patch_handler(twin_patch):
-    #     print("Twin patch received:")
-    #     print(twin_patch)
-
-    # try:
-    #     client.on_twin_desired_properties_patch_received = twin_patch_handler
-    # except:
-    #     client.shutdown()
-    try:
-        twin = client.get_twin()
-        print("twin:",twin)
-    except Exception as e:
-        print(e)
-    # print(Message)
-    connector.setConnection(twin, client, Message)
-
-    # return client
-
-
-if __name__ == "__main__":
-
-    create_client()
-
-
-from pyModbusTCP.client import ModbusClient
-import time
-# from azure.iot.device import IoTHubModuleClient
-import json
-
-
-def send_to_iothub(data, edgeClient, Message):
-
-    try:
-        # CONNECTION_STRING = "HostName=EDGTneerTrainingPractice.azure-devices.net;DeviceId=edgeDevive-opcua;SharedAccessKey=jiDsujbUvP2MySzcHAg+eDYEKf97zrh+YTqM6sGjkQU="
-        # module_client = IoTHubModuleClient.create_from_connection_string(
-        #     CONNECTION_STRING)
-        # module_client.connect()
-        message = json.dumps(data)
-        message = Message(message)
-        edgeClient.send_message_to_output(message, "modbusdata")
-        # edgeClient.patch_twin_reported_properties(data)
-        # module_client.disconnect()
-        print(f"Successfully sent data to IoT Hub--->  {data}")
-    except Exception as e:
-        print("Error sending data to IoT Hub:", str(e))
-
-
-def collect(twin, edgeClient, Message):
-    last_data = None
-    # FOR DEBUG PURPOSE ONLY
-# let obj = {
-#     'devices': {
-#         "1001": {
-#             id: '1001',
-#             type: 'modbus-tcp',
-#             thingId: '2001',
-#             interval: '10000',
-#             connection: {
-#                 ipAddress: '52.149.144.189',
-#                 port: '502',
-#                 slaveId: '1'
-#             },
-#             signals: {
-#                 "temperature": {
-#                     name: "temperature",
-#                     address: '30001',
-#                     length: '1',
-#                     unitId: '1',
-#                     interval: '1000'
-#                 },
-#                 "humidity": {
-#                     name: "humidity",
-#                     address: '30002',
-#                     length: '1',
-#                     unitId: '2',
-#                     interval: '1000'
-#                 }
-#             }
-#         }
-#     }
-# }
-    # print(twin)
-    # SERVER_IP = "3.86.56.32"
-    # SERVER_PORT = 2109
-    devices=twin["desired"]["devices"]
-    for device_id,device_properties in devices.items():
-        SERVER_IP=device_properties["connection"]["ipAddress"]
-        SERVER_PORT=device_properties["connection"]["port"]
-    #SERVER_PORT=twin["desired"]["devices"]["connection"]["port"]
-    print("IP:",SERVER_IP,"port:",SERVER_PORT)
-    SERVER_PORT=502
-    
-    client = ModbusClient(host=SERVER_IP, port=SERVER_PORT)
-
-
-    if not client.is_open:
-        if not client.open():
-            print(f"Unable to connect to {SERVER_IP}:{SERVER_PORT}")
-            exit(1)
-    try:
-        while True:
-            # Read temperature and pressure values from the server
-            data = client.read_holding_registers(0, 4)
-
-            if data:
-                energy = data[0]
-                voltage = data[1]
-                current = data[2]
-                power = data[3]
-
-                data_to_send = {
-                    "energy": energy,
-                    "voltage": voltage,
-                    "current": current,
-                    "power": power
-                }
-
-                if last_data != data_to_send:
-                    send_to_iothub(data_to_send, edgeClient,Message)
-                    print(data_to_send)
-                    last_data = data_to_send
-                else:
-                    pass
-
-                # send_to_iothub(data_to_send,edgeClient)
-                # # print(f"Temperature: {temperature}°C")
-                # # print(f"Pressure: {pressure} hPa")
-                # print(data_to_send)
-                # time.sleep(2)
-            else:
-                print("Failed to read data from the server")
-
-    except KeyboardInterrupt:
-        print("Closing Modbus client...")
-        client.close()
-
-
-def setConnection(twinObj, edgeClient, Message):
-    # print(twinObj)
-    myedgeclient = edgeClient
-    myMessage = Message
-
-    global twin
-    twin = twinObj
-
-    if twin:
-        twin = twinObj
-        time.sleep(1)
-        print("Starting data acquisition task")
-
-        collect(twin, myedgeclient, myMessage)
-    else:
-        twin = twinObj
-    print("Updated twin")
-    # print(twinObj)
-    # print(twin)
-
-    # SERVER_IP = "3.86.56.32"
-    # SERVER_PORT = 2109
-
-    # print(SERVER_IP)
-    # print(SERVER_PORT)
-
+"devices": {
+                "c2b2de33f8bf900fc795a323d2d3c13a": {
+                    "connection": {
+                        "ipAddress": "10.37.4.251",
+                        "port": "502",
+                        "slaveId": "1"
+                    },
+                    "id": "c2b2de33f8bf900fc795a323d2d3c13a",
+                    "interval": "100",
+                    "signals": {
+                        "current": {
+                            "address": "2",
+                            "interval": "1000",
+                            "length": "1",
+                            "name": "current",
+                            "unitId": "1"
+                        },
+                        "energy": {
+                            "address": "0",
+                            "interval": "1000",
+                            "length": "1",
+                            "name": "energy",
+                            "unitId": "1"
+                        },
+                        "power": {
+                            "address": "3",
+                            "interval": "1000",
+                            "length": "1",
+                            "name": "power",
+                            "unitId": "1"
+                        },
+                        "voltage": {
+                            "address": "1",
+                            "interval": "1000",
+                            "length": "1",
+                            "name": "voltage",
+                            "unitId": "1"
+                        }
+                    },
+                    "thingId": "b025f5ef67d5f96307fa89340116d656",
+                    "type": "modbustcp"
+                },
