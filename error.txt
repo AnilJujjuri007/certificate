@@ -1,3 +1,33 @@
+last_twin_patch = {}  # Global variable to store the last received twin patch
+
+def create_client():
+    try:
+        client = IoTHubModuleClient.create_from_connection_string(CONNECTION_STRING)
+        client.connect()
+
+        def twin_patch_handler(twin_patch):
+            global last_twin_patch
+            print("Twin patch received:")
+            print(twin_patch)
+            last_twin_patch = twin_patch
+
+            # Example: Accessing twin properties directly
+            desired_properties = twin_patch.get("desired", {})
+            # Add logic to use desired_properties as needed
+
+        client.on_twin_desired_properties_patch_received = twin_patch_handler
+
+    except Exception as e:
+        print("Error occurred:", e)
+        return
+
+    # Other setup code...
+
+if __name__ == "__main__":
+    create_client()
+
+
+
 import connector
 import time
 from azure.iot.device import IoTHubModuleClient, Message
