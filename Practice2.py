@@ -10,11 +10,7 @@ opcua_endpoint = "opc.tcp://BLRTSL00330.lnties.com:53530/OPCUA/SimulationServer"
 def get_node_type(node):
     if node.get_node_class() == ua.NodeClass.Object:
         children = node.get_children()
-<<<<<<< HEAD
         print(f"{node.get_browse_name()} is an object having following child nodes:")
-=======
-        print(f"{node.get_browse_name()} is an object following child nodes:")
->>>>>>> e9c02bb5f31a576421143f53e75628b0cba41e13
         for child in children:
             node_type = get_node_type(child)
 
@@ -52,8 +48,4 @@ upload_button = tk.Button(window, text="Upload CSV File and Process", command=up
 upload_button.pack()
 
 # Start the Tkinter main loop
-<<<<<<< HEAD
 window.mainloop()
-=======
-window.mainloop()
->>>>>>> e9c02bb5f31a576421143f53e75628b0cba41e13
