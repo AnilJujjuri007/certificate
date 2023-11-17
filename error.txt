@@ -1,42 +1,53 @@
-"devices": {
-                "c2b2de33f8bf900fc795a323d2d3c13a": {
-                    "connection": {
-                        "ipAddress": "10.37.4.251",
-                        "port": "502",
-                        "slaveId": "1"
-                    },
-                    "id": "c2b2de33f8bf900fc795a323d2d3c13a",
-                    "interval": "100",
-                    "signals": {
-                        "current": {
-                            "address": "2",
-                            "interval": "1000",
-                            "length": "1",
-                            "name": "current",
-                            "unitId": "1"
-                        },
-                        "energy": {
-                            "address": "0",
-                            "interval": "1000",
-                            "length": "1",
-                            "name": "energy",
-                            "unitId": "1"
-                        },
-                        "power": {
-                            "address": "3",
-                            "interval": "1000",
-                            "length": "1",
-                            "name": "power",
-                            "unitId": "1"
-                        },
-                        "voltage": {
-                            "address": "1",
-                            "interval": "1000",
-                            "length": "1",
-                            "name": "voltage",
-                            "unitId": "1"
-                        }
-                    },
-                    "thingId": "b025f5ef67d5f96307fa89340116d656",
-                    "type": "modbustcp"
-                },
+import tkinter as tk
+from tkinter import filedialog
+from opcua import Client
+from opcua import ua
+
+# Specify the OPC UA server endpoint
+opcua_endpoint = "opc.tcp://BLRTSL00330.lnties.com:53530/OPCUA/SimulationServer"
+
+# Function to determine the type of a node and retrieve its value
+def get_node_type_and_value(node):
+    if node.get_node_class() == ua.NodeClass.Object:
+        children = node.get_children()
+        print(f"{node.get_browse_name()} is an object having following child nodes:")
+        for child in children:
+            get_node_type_and_value(child)
+
+    elif node.get_node_class() == ua.NodeClass.Variable:
+        value = node.get_value()
+        if value is not None:
+            print(f"Node Name: {node.get_browse_name().Name}, NodeId: {node.nodeid}, Value: {value}")
+        else:
+            print(f"Node Name: {node.get_browse_name().Name}, NodeId: {node.nodeid}")
+
+# Function to upload and process a CSV file
+def upload_and_process_csv():
+    file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
+    if file_path:
+        try:
+            with Client(opcua_endpoint) as client:
+                client.connect()
+                with open(file_path, 'r') as csvfile:
+                    for row in csvfile:
+                        node_id = row.strip()
+                        try:
+                            node = client.get_node(node_id)
+                            get_node_type_and_value(node)
+                        except Exception as e:
+                            print(f"Error reading node {node_id}: {str(e)}")
+                # Disconnect the OPC UA client after processing
+                client.disconnect()
+        except Exception as e:
+            print(f"Error connecting to the OPC UA server: {str(e)}")
+
+# Create a Tkinter window
+window = tk.Tk()
+window.title("CSV File Upload and OPC UA Processing")
+
+# Create a button to trigger the file upload and processing
+upload_button = tk.Button(window, text="Upload CSV File and Process", command=upload_and_process_csv)
+upload_button.pack()
+
+# Start the Tkinter main loop
+window.mainloop()
