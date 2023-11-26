@@ -1,55 +1,57 @@
-import tkinter as tk
+from flask import Flask, request, jsonify
+from flask_cors import CORS  # Optional: Enable CORS if your API and frontend are on different domains
 from tkinter import filedialog
-from opcua import Client
-from opcua import ua
+from opcua import Client, ua
+
+app = Flask(__name__)
+CORS(app)  # Optional: Enable CORS if your API and frontend are on different domains
 
 # Specify the OPC UA server endpoint
 opcua_endpoint = "opc.tcp://BLRTSL00330.lnties.com:53530/OPCUA/SimulationServer"
 
 # Function to determine the type of a node and retrieve its value
-def get_node_type_and_value(client,node):
-    if node.get_node_class() == ua.NodeClass.Object:
-        children = node.get_children()
-        print(f"{node.get_browse_name()} is an object having following child nodes:")
-        for child in children:
-            get_node_type_and_value(client,child)
-        client.disconnect()
-    elif node.get_node_class() == ua.NodeClass.Variable:
-        value = node.get_value()
-        if value is not None:
-            print(f"Node Name: {node.get_browse_name().Name}, NodeId: {node.nodeid}, Value: {value}")
-        else:
-            print(f"Node Name: {node.get_browse_name().Name}, NodeId: {node.nodeid}")
+def get_node_type_and_value(client, node):
+    # Same as your original function, unchanged
 
 # Function to upload and process a CSV file
-def upload_and_process_csv():
-    file_path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
-    if file_path:
+def upload_and_process_csv(file_path):
+    try:
+        with open(file_path, 'r') as csvfile:
+            for row in csvfile:
+                node_info = row.strip().split(',')
+                if len(node_info) == 2:
+                    node_id, connection_address = node_info
+                    try:
+                        with Client(connection_address) as client:
+                            client.connect()
+                            node = client.get_node(node_id)
+                            get_node_type_and_value(client, node)
+                            
+                    except Exception as e:
+                        return f"Error reading node {node_id} from {connection_address}: {str(e)}"
+                        
+    except Exception as e:
+        return f"Error processing CSV file: {str(e)}"
+
+# API endpoint to handle file upload and processing
+@app.route('/upload', methods=['POST'])
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file part"})
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        return jsonify({"error": "No selected file"})
+    
+    if file:
         try:
-            with open(file_path, 'r') as csvfile:
-                for row in csvfile:
-                    node_info = row.strip().split(',')
-                    if len(node_info) == 2:
-                        node_id, connection_address = node_info
-                        try:
-                            with Client(connection_address) as client:
-                                client.connect()
-                                node = client.get_node(node_id)
-                                get_node_type_and_value(client,node)
-                                
-                        except Exception as e:
-                            print(f"Error reading node {node_id} from {connection_address}: {str(e)}")
-                            client.disconnect()
+            file_path = filedialog.asksaveasfilename(defaultextension=".csv", filetypes=[("CSV Files", "*.csv")])
+            file.save(file_path)
+            result = upload_and_process_csv(file_path)
+            return jsonify({"result": result})
         except Exception as e:
-            print(f"Error processing CSV file: {str(e)}")
+            return jsonify({"error": f"Error: {str(e)}"})
 
-# Create a Tkinter window
-window = tk.Tk()
-window.title("CSV File Upload and OPC UA Processing")
-
-# Create a button to trigger the file upload and processing
-upload_button = tk.Button(window, text="Upload CSV File and Process", command=upload_and_process_csv)
-upload_button.pack()
-
-# Start the Tkinter main loop
-window.mainloop()
+if __name__ == '__main__':
+    app.run(debug=True)
