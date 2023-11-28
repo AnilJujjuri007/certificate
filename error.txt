@@ -1,354 +1,172 @@
-import os
-import json
-from datetime import datetime, timezone
-import uuid
-import hashlib
-import base64
-from flask import Flask, jsonify, request
-from flask_cors import CORS, cross_origin
-from flask_httpauth import HTTPBasicAuth
-from collections import OrderedDict
-from flask_restx import Api, Resource, fields
-from azure.iot.deviceupdate import DeviceUpdateClient
-from azure.identity import DefaultAzureCredential
-from werkzeug.middleware.proxy_fix import ProxyFix
-import json
-from azure.storage.blob import BlobServiceClient
-from flask_swagger_ui import get_swaggerui_blueprint
+const modbus = require('modbus-tcp-ip')
 
-os.environ["AZURE_IOTHUB_CONNECTION_STRING"] = 'HostName=EDGTneerTrainingPractice.azure-devices.net;SharedAccessKeyName=iothubowner;SharedAccessKey=PkFMytr2Ns0hG/5eP4YHkGuKOCv5gO7Cv7NjHbIg/Zg='
-os.environ["DEVICE_ID"] = 'adudemo'
-os.environ["AZURE_TENANT_ID"] = 'df7b3572-e484-4fcf-a072-6edd5d73f11f'
-os.environ["DEVICEUPDATE_ENDPOINT"] =  "adu-imagebased-update.api.adu.microsoft.com"
-os.environ["DEVICEUPDATE_INSTANCE_ID"] = "adu-ImageBased-update"
-os.environ["AZURE_CLIENT_ID"] = '534fcc9e-a3bf-46ff-91c3-f257336ecb66'
-os.environ["AZURE_CLIENT_SECRET"] = 'Hbc8Q~cbnxjDGEkL8h6cgujei4LtI9LW1-t-xaoh'
-os.environ["AZURE_SUBSCRIPTION_ID"] = 'fd57b649-61f3-4029-a3cd-a6e9aa0b4d80'
+let twin = null;
+let myedgeClient = null;
+let myMessage = null;
+async function collect(edgeClient, Message) {
+    // for (let index = 0; index < connection.length; index++) {
+    while (true) {
+        try {
+            console.log("Running")
+            let connection = await getConnection();
+            connection = connection.devices;
+            console.log(connection)
+            if (connection) {
+                for (const key in connection) {
+                    if (connection.hasOwnProperty(key)) {
+                        const element = connection[key];
 
-app = Flask(__name__)
-CORS(app)
-OPENAPI_URL = '/swagger'
-API_URL = '/static/swagger.yaml'
-openapi_blueprint = get_swaggerui_blueprint(
-  OPENAPI_URL,
-  API_URL,
-  config={'app_name': "ADU API"}
-)
-app.register_blueprint(openapi_blueprint, url_prefix=OPENAPI_URL)
-# api = Api(app, version='1.0.0', title='ADU API', description='APIs for managing ADU operations', doc='/swagger')
-# Swagger UI Blueprint
-# SWAGGER_URL = '/swagger'
-# API_URL = '/static/swagger.yaml'
-# swagger_blueprint = get_swaggerui_blueprint(
-#    SWAGGER_URL,
-#    API_URL,
-#    config={'app_name': "ADU API"}
-# )
-# app.register_blueprint(swagger_blueprint, url_prefix=SWAGGER_URL)
-# api = Api(app, version='2.0', title='ADU API', description='APIs for managing ADU operations', doc='/swagger')
+                        let telemetry = { "thingId": element.thingId, "deviceId": element.id, "message_type": "telemetry", "data": {} };
+                        try {
+                            // step 1 : connect to
+                            let device = modbus(element.connection.ipAddress, element.connection.port, element.connection.slaveId ? element.connection.slaveId : 1);
+                            // modbus.on('error', function (err) {
+                            //     console.log("Captured the close event")
+                            // });
+                            console.log("connected !");
 
-@cross_origin()
-@app.route('/api/credentials')
-class ADUCredentials(Resource):
-   def get(self):
-       endpoint = request.args.get('endpoint')
-       instance_id = request.args.get('instance_id')
-       if not endpoint or not instance_id:
-           return "Missing endpoint or instance_id parameters", 400
-       try:
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            # Your code to update the swagger definition here
-            response = {"endpoint": endpoint, "instance_id": instance_id}
-            return response, 200
-       except Exception as e:
-             return 'Failed to fetch credentials',500
-@cross_origin()
-@app.route('/api/import')
-class ADUImportUpdate(Resource):
-    def post(self):
-        try:
-            query = request.args
-            endpoint = query.get('endpoint')
-            instance_id = query.params.get('instance_id')
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters", 400
-            payload_file = query.get('payload_file')
-            payload_url = query.get('payload_url')
-            manifest_file = query.get('manifest_file')
-            manifest_url = query.get('manifest_url')
-            # Replace these with your own values
-            connection_string = "DefaultEndpointsProtocol=https;AccountName=edgyneerdemostorage;AccountKey=373kx/WWPHIIfZlZqXo034BN0wYu6c08E/KrIl0OSvA1foCDuPAhkT0Liw2N68gqCVx+cHZ4PZh9+AStUSBzrA==;EndpointSuffix=core.windows.net"
-            container_name = "azure-sphere-rtos"
-            blob_name = manifest_file
-            try:
-                # Initialize the BlobServiceClient using the connection string
-                blob_service_client = BlobServiceClient.from_connection_string(connection_string)
-                # Get a reference to the blob
-                blob_client = blob_service_client.get_blob_client(container_name, blob_name)
-            except Exception:
-                return "Forbidden connection to Blob Service",403
-            # Get the blob properties to retrieve the size
-            blob_properties = blob_client.get_blob_properties()
-            # Calculate the hash of the blob
-            hash_algorithm = hashlib.sha256()  # You can choose other algorithms like md5, sha1, etc.
-            blob_stream = blob_client.download_blob()
-            for chunk in blob_stream.chunks():
-                hash_algorithm.update(chunk)
-            blob_hash = hash_algorithm.digest()
-            manifest_hash = base64.b64encode(blob_hash).decode('utf-8')
-            # Print the results
-            print("File Size:", blob_properties['size'])
-            print("File Hash:", blob_hash)    
-            # Build a client through AAD
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            content = [{
-                    "importManifest": {
-                        "url": manifest_url,
-                        "sizeInBytes": blob_properties['size'],
-                        "hashes": {
-                            "sha256": manifest_hash
+                            for (const key in element.signals) {
+                                if (element.signals.hasOwnProperty(key)) {
+                                    const signal = element.signals[key];
+                                    console.log(signal.name)
+                                    let value = await device.read(GetAddress(signal.address, signal.length));
+                                    console.log(value)
+                                    telemetry.data[signal.name] = value;
+                                }
+                            }
+
+                            telemetry.ts = (Date.now() / 1000).toFixed(0);
+                            console.log(telemetry);
+
+                            try {
+                                // var message = telemetry.getBytes().toString('utf8');
+                                if (telemetry) {
+                                    var outputMsg = new Message(JSON.stringify(telemetry));
+                                    edgeClient.sendOutputEvent('modbustcpTelemetry', outputMsg, printResultFor('Sending received message'));
+                                }
+                            } catch (error) {
+                                console.log("Failed to send data to cloud -" + error);
+                            }
+                            // disconnecting
+                            device = null;
+                            console.log("done !");
+                        } catch (err) {
+                            console.log("An error has occured : ", err);
                         }
-                    },
-                    "files": [{
-                        "filename": payload_file,
-                        "url": payload_url
-                    }]
-            }
-            ]
-            print(content)
-            response = client.device_update.begin_import_update(content)
-            response.wait()
-            response = {"message": "Accepted update import request"}
-            return json.dumps(response), 202   
-        except Exception as e:
-             return 'Deployment taking time/failed..Check the deployment status to verify',500
-@cross_origin()
-@app.route('/api/deploy')
-class ADUDeployUpdate(Resource):
-    def post(self):
-         '''Deploy updates'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         update_provider = request.args.get('update_provider')
-         update_name = request.args.get('update_name')
-         update_version = request.args.get('update_version')
-         group = request.args.get('group')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            deployment_id = uuid.uuid4().hex
-            deployment = {
-                "deploymentId": deployment_id,
-                "startDateTime": str(datetime.now(timezone.utc)),
-                "update": {
-                    "updateId": {
-                        "provider": update_provider,
-                        "name": update_name,
-                        "version": update_version
+                        await timeout(element.interval);
                     }
-                },
-                "groupId": group
+                }
             }
-            response = client.device_management.create_or_update_deployment(group, deployment_id, deployment)
-            response = client.device_management.get_deployment_status(group, deployment_id)
-            return response, 200
-         except Exception as e:
-            return "Failed to deploy update .", 500
-@cross_origin()
-@app.route('/api/getupdate')
-class ADUgetUpdate(Resource):
-    def get(self):
-         '''ADU Get Update'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         update_provider = request.args.get('update_provider')
-         update_name = request.args.get('update_name')
-         update_version = request.args.get('update_version')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            # Your code to update the swagger definition here
-            response = client.device_update.get_update(update_provider, update_name, update_version)
-            return jsonify(response), 200
-         except Exception as e:
-             return "Failed to get update.", 500
-@cross_origin()
-@app.route('/api/getgroup')
-class ADUgetgroup(Resource):
-    def get(self):
-         '''ADU Get Group'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            response = client.device_management.list_groups(order_by='groupId')
-            responsegrps = {}
-            groups = []
-            for group in response:
-                groups.append(group['groupId'])
-            responsegrps['groups'] = groups
-            return response, 200
-         except Exception as e:
-             return "Failed to get group.", 500
-@cross_origin()
-@app.route('/api/getdeployment')
-class ADUgetDeployment(Resource):
-    def get(self):
-         '''ADU Get Deployment Details'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            response = {}
-            grp_list = client.device_management.list_groups()
-            deployments = []
-            for grp in grp_list:
-                dep_resp = client.device_management.list_deployments_for_group(grp['groupId'])
-                for dep in dep_resp:
-                    dep_details_resp = client.device_management.get_deployment_status(grp['groupId'], dep['deploymentId'])
-                    device_update = {
-                       "total": 0,
-                       "inprogress": 0,
-                       "success": 0,
-                       "failure": 0,
-                       "canceled": 0
-                   }
-                    for subgrp in dep_details_resp['subgroupStatus']:
-                        device_update['total'] += subgrp['totalDevices']
-                        device_update['inprogress'] += subgrp['devicesInProgressCount']
-                        device_update['success'] += subgrp['devicesCompletedFailedCount']
-                        device_update['failure'] += subgrp['devicesCompletedSucceededCount']
-                        device_update['canceled'] += subgrp['devicesCanceledCount']
-                        deployments.append({
-                            "groupId": grp['groupId'],
-                            "startDateTime": dep['startDateTime'],
-                            "updateDetails": dep['update'],
-                            "deploymentId": dep['deploymentId'],
-                            "deploymentstate": dep_details_resp['deploymentState'], 
-                            "devicedetails": device_update 
-                            })
-            response['deployments'] = deployments
-            
-            return jsonify(response), 200
-         except Exception as e:
-             return "Failed to get deployment.", 500
-@cross_origin()
-@app.route('/api/list')
-class ADUlist(Resource):
-    def get(self):
-         '''ADU List Update'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            # Your code to update the swagger definition here
-            response = {}
-            updates = []
-            provider_response = client.device_update.list_providers()
-            for provider in provider_response:
-                name_response = client.device_update.list_names(provider)
-                for name in name_response:
-                    version_response = client.device_update.list_versions(provider, name)
-                    for version in version_response:
-                        updates.append([provider,name,version])
-            response['updates'] = updates
-            return response, 200
-         except Exception as e:
-             return "Failed to List updates.", 500
-@cross_origin()
-@app.route('/api/getdevice')
-class ADUgetdevice(Resource):
-    def get(self):
-         '''ADU Get Device'''
-         endpoint = request.args.get('endpoint')
-         instance_id = request.args.get('instance_id')
-         devicename = request.args.get('device')
-         try:
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
-            # Your code to update the swagger definition here
-            response = {}
-            device_list = client.device_management.list_devices()
-            devices = []
-            for device in device_list:
-                if devicename == device["deviceId"]:
-                    devices.append({"device":device['deviceId'],"group":device['groupId']})
-            response['devices'] = devices
-            return response, 200
-         except Exception as e:
-             return "Failed to get update.", 500
-@cross_origin()
-@app.route('/api/delete')
-class ADUdeleteUpdate(Resource):
-    def delete(self):
-         '''Deletes an update from ADU'''
-         try:
-            query = request.args
-            endpoint = query.get('endpoint')
-            instance_id = query.get('instance_id')
-            update_provider = query.get('update_provider')
-            update_name = query.get('update_name')
-            update_version = query.get('update_version')
+        } catch (error) {
+            console.log("Error in communication/processing " + err)
+        }
+        await timeout(100);
+    }
+}
+// add this handler before emitting any events
+process.on('uncaughtException', function (err) {
+    console.log('Starting Data Aquistion Task');
+    collect(myedgeClient, myMessage);
+    console.log('UNCAUGHT EXCEPTION - keeping process alive:', err); // err.message is "foobar"
+});
 
-            if not endpoint or not instance_id:
-                return "Missing endpoint or instance_id parameters.", 400
-            
-            client = DeviceUpdateClient(credential=DefaultAzureCredential(), endpoint=endpoint, instance_id=instance_id)
+async function timeout(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-            response = client.device_update.begin_delete_update(update_provider, update_name, update_version)
-            response.wait()
+async function setConnection(twinObj, edgeClient, Message) {
+    console.log(twin)
+    myedgeClient = edgeClient;
+    myMessage = Message;
+    if (twin === null) {
+        twin = twinObj;//.properties.desired;
+        setTimeout(() => {
+            console.log('Starting Data Aquistion Task');
+            collect(edgeClient, Message);
+        }, 1000);
+    } else {
+        twin = twinObj;//.properties.desired;
+    }
+    console.log("Updated twin")
+    console.log(twinObj)
+    console.log(twin)
+}
 
-            return json.dumps({"message": "Update deletion request accepted."}), 202
-         except Exception as e:
-             return 'Failed to delete update',500
+async function getConnection() {
+    return twin;
+}
 
+// Helper function to print results in the console
+function printResultFor(op) {
+    return function printResult(err, res) {
+        if (err) {
+            console.log(op + ' error: ' + err.toString());
+        }
+        if (res) {
+            console.log(op + ' status: ' + res.constructor.name);
+        }
+    };
+}
 
-if __name__ == '__main__':
-   app.run(host="0.0.0.0",port=5000,debug=True)
+// FOR DEBUG PURPOSE ONLY
+// let obj = {
+//     'devices': {
+//         "1001": {
+//             id: '1001',
+//             type: 'modbus-tcp',
+//             thingId: '2001',
+//             interval: '10000',
+//             connection: {
+//                 ipAddress: '52.149.144.189',
+//                 port: '502',
+//                 slaveId: '1'
+//             },
+//             signals: {
+//                 "temperature": {
+//                     name: "temperature",
+//                     address: '30001',
+//                     length: '1',
+//                     unitId: '1',
+//                     interval: '1000'
+//                 },
+//                 "humidity": {
+//                     name: "humidity",
+//                     address: '30002',
+//                     length: '1',
+//                     unitId: '2',
+//                     interval: '1000'
+//                 }
+//             }
+//         }
+//     }
+// }
 
+// setConnection(obj, null, null);
+function GetAddress(address, length) {
+    let fc = address.split('')[0];
+    let temp = address.slice(1);
+    let response = '';
+    switch (fc) {
+        case '1':
+            response = 'c' + temp;
+            break;
+            break;
+        case '2':
+            response = 'i' + temp;
+        case '3':
+            response = 'hr' + temp;
+            break;
+        case '4':
+            response = 'ir' + temp;
+            break;
+        default:
+        //TBD
+    }
+    if (Number(length) > 1) {
+        response = response + '-' + (Number(temp) + Number(length))
+    }
+    return response;
+}
 
-2023-11-27 12:12:53 WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
-2023-11-27 12:12:53  * Running on all addresses (0.0.0.0)
-2023-11-27 12:12:53  * Running on http://127.0.0.1:5001
-2023-11-27 12:12:53  * Running on http://172.17.0.5:5001
-2023-11-27 12:12:53 Press CTRL+C to quit
-2023-11-27 12:12:53  * Restarting with stat
-2023-11-27 12:12:53  * Debugger is active!
-2023-11-27 12:12:53  * Debugger PIN: 126-510-773
-2023-11-27 12:12:53  * Serving Flask app 'app'
-2023-11-27 12:12:53  * Debug mode: on
+module.exports = { setConnection }
 
-FROM python:3.10-slim
-
-EXPOSE 5001
-
-# Keeps Python from generating .pyc files in the container
-ENV PYTHONDONTWRITEBYTECODE=1
-
-
-# Turns off buffering for easier container logging
-ENV PYTHONUNBUFFERED=1
-
-# Install pip requirements
-COPY requirements.txt .
-RUN python -m pip install -r requirements.txt
-
-WORKDIR /ADUAPIS
-COPY . /ADUAPIS
-
-# Creates a non-root user with an explicit UID and adds permission to access the /app folder
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
-RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /ADUAPIS
-USER appuser
-
-# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "app:app"]
