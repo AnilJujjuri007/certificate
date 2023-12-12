@@ -1,38 +1,100 @@
 from opcua import Client
-from opcua import ua
+from azure.iot.device import IoTHubModuleClient, Message
+import json
+import time
 
-# Specify the OPC UA server endpoint
-opcua_endpoint = "opc.tcp://BLRTSL00330.lnties.com:53530/OPCUA/SimulationServer"
+# Azure IoT Hub connection string
+CONNECTION_STRING = "HostName=EDGTneerTrainingPractice.azure-devices.net;DeviceId=edgeDevive-opcua;SharedAccessKey=jiDsujbUvP2MySzcHAg+eDYEKf97zrh+YTqM6sGjkQU="
 
-# Function to determine the type of a node
-def get_node_type(node):
-    if node.get_node_class() == ua.NodeClass.Object:
-        children = node.get_children()
-        # print(children)
+def send_to_iothub(data, edge_client, message):
+    try:
+        message = Message(json.dumps(data))
+        edge_client.send_message_to_output(message, "modbusdata")
+        print(f"Successfully sent data to IoT Hub: {data}")
+    except Exception as e:
+        print(f"Error sending data to IoT Hub: {str(e)}")
 
-        print(f"{node.get_browse_name()} is an object following child nodes:")
-        for child in children:
-            node_type = get_node_type(child)
-            # print(f"-{child.get_browse_name()} is a {node_type}")
+def collect_opcua_data(device_properties, edge_client, message):
+    try:
+        with Client(device_properties["connection"]["ipAddress"]) as client:
+            client.connect()
 
-    elif node.get_node_class() == ua.NodeClass.Variable:
-        value = node.get_value()
-        print(f"Node Name: {node.get_browse_name().Name}, NodeId: {node.nodeid}, Value: {value}")
+            while True:
+                for signal_name, signal_info in device_properties["signals"].items():
+                    node_id = f"ns=2;s={signal_info['address']}"
+                    value = client.get_node(node_id).get_value()
 
+                    data_to_send = {
+                        signal_name: value
+                    }
 
+                    send_to_iothub(data_to_send, edge_client, message)
+                    time.sleep(int(signal_info["interval"]) / 1000)
 
-with open('nodes.csv', 'r') as csvfile:
-    for row in csvfile:
-        node_id = row.strip()
+    except KeyboardInterrupt:
+        print("Closing OPC UA client...")
 
-        try:
-            with Client(opcua_endpoint) as client:
-                client.connect()
-                node = client.get_node(node_id)
+if __name__ == '__main__':
+    try:
+        module_client = IoTHubModuleClient.create_from_connection_string(CONNECTION_STRING)
+        module_client.connect()
 
-                node_type = get_node_type(node)
-                print(f"{node_id} is a {node_type}")
-        except Exception as e:
-            print(f"Error reading node {node_id}: {str(e)}")
+        message = Message()
 
+        twin = {
+            "properties": {
+                "desired": {
+                    "devices": {
+                        "c2b2de33f8bf900fc795a323d2d3c13a": {
+                            "connection": {
+                                "ipAddress": "192.168.101.72",
+                                "port": "502",
+                                "slaveId": "1"
+                            },
+                            "signals": {
+                                "current": {
+                                    "address": "2",
+                                    "interval": "1000",
+                                    "length": "1",
+                                    "name": "current",
+                                    "unitId": "1"
+                                },
+                                "energy": {
+                                    "address": "0",
+                                    "interval": "1000",
+                                    "length": "2",
+                                    "name": "energy",
+                                    "unitId": "1"
+                                },
+                                "power": {
+                                    "address": "3",
+                                    "interval": "1000",
+                                    "length": "2",
+                                    "name": "power",
+                                    "unitId": "1"
+                                },
+                                "voltage": {
+                                    "address": "1",
+                                    "interval": "1000",
+                                    "length": "1",
+                                    "name": "voltage",
+                                    "unitId": "1"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
+        twin_properties = twin["properties"]["desired"]["devices"]["c2b2de33f8bf900fc795a323d2d3c13a"]
+        if twin_properties:
+            collect_opcua_data(twin_properties, module_client, message)
+        else:
+            print("No twin properties found.")
+
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+    finally:
+        module_client.disconnect()
