@@ -1,70 +1,103 @@
-from azure.iot.device import IoTHubModuleClient, Message
 from opcua import Client
+from azure.iot.device import IoTHubModuleClient, Message
 import json
-import time
+import asyncio
+import paho.mqtt.client as mqtt
 
-# Azure IoT Hub connection string
-CONNECTION_STRING = "HostName=EDGTneerTrainingPractice.azure-devices.net;DeviceId=edgeDevive-opcua;SharedAccessKey=jiDsujbUvP2MySzcHAg+eDYEKf97zrh+YTqM6sGjkQU="
+# Define module-level variables
+opcua_client = None
+mqtt_client = None
 
-def send_to_iothub(data, edge_client, message):
+async def send_to_iothub(data, edge_client, message):
     try:
         message = Message(json.dumps(data))
-        edge_client.send_message_to_output(message, "opcua_data")
-        print(f"Successfully sent OPC UA data to IoT Hub: {data}")
+        await edge_client.send_message_to_output(message, "opcuadata")
+        print(f"Successfully sent data to IoT Hub--->  {data}")
     except Exception as e:
-        print(f"Error sending OPC UA data to IoT Hub: {str(e)}")
+        print("Error sending data to IoT Hub:", str(e))
 
-def collect_opcua_data(device_properties, edge_client, message, signal_addresses):
+async def collect(twin, edge_client, message):
     try:
-        with Client(device_properties["connection"]["serverUrl"]) as client:
-            client.connect()
+        devices = twin['devices']
+        for device_id, device_properties in devices.items():
+            server_url = device_properties["connection"]["ipAddress"]
+            signals = device_properties['signals']
+            mqtt_broker_address = device_properties.get("mqttBrokerAddress", "")
+            mqtt_topic = device_properties.get("mqttTopic", "")
 
-            while True:
-                for signal_name, signal_info in device_properties["signals"].items():
-                    node_id = signal_info["address"]
-                    value = client.get_node(node_id).get_value()
+        global opcua_client
+        with Client(server_url) as opcua_client:
+            opcua_client.connect()
+            print("Connected to OPC UA server!")
+            print(signals)
 
-                    data_to_send = {
-                        signal_name: value
-                    }
+            for signal_name, signal_info in signals.items():
+                node_id = signal_info["address"]
+                value = opcua_client.get_node(node_id).get_value()
 
-                    send_to_iothub(data_to_send, edge_client, message)
-                    time.sleep(int(signal_info["interval"]) / 1000)
+                data_to_send = {signal_name: value}
+                await send_to_iothub(data_to_send, edge_client, message)
 
-                # Update the set of signal addresses
-                signal_addresses.update(signal_info['address'] for signal_info in device_properties["signals"].values())
+                # Publish data to MQTT broker
+                global mqtt_client
+                mqtt_payload = json.dumps(data_to_send)
+                mqtt_client.publish(mqtt_topic, mqtt_payload)
+                print(f"Published data to MQTT broker---> {data_to_send}")
+
+                await asyncio.sleep(int(signal_info["interval"]) / 1000)
 
     except KeyboardInterrupt:
         print("Closing OPC UA client...")
 
-def get_twin_properties(module_client):
-    twin_properties = module_client.get_twin()
-    desired_properties = twin_properties["properties"]["desired"]
-    return desired_properties.get("devices", {})
+def on_mqtt_connect(client, userdata, flags, rc):
+    print(f"Connected to MQTT broker with result code {rc}")
 
-if __name__ == '__main__':
-    try:
-        module_client = IoTHubModuleClient.create_from_connection_string(CONNECTION_STRING)
-        module_client.connect()
+def on_mqtt_disconnect(client, userdata, rc):
+    print(f"Disconnected from MQTT broker with result code {rc}")
 
-        message = Message()
+async def set_connection(twin_obj, edge_client, message):
+    global opcua_client
+    global mqtt_client
 
-        signal_addresses = set()
+    my_edge_client = edge_client
+    my_message = message
+    global twin
+    twin = twin_obj
 
-        while True:
-            twin_properties = get_twin_properties(module_client)
-            if twin_properties:
-                for device_id, device_properties in twin_properties.items():
-                    collect_opcua_data(device_properties, module_client, message, signal_addresses)
-            else:
-                print("No twin properties found.")
+    if twin:
+        twin = twin_obj
+        time.sleep(1)
+        print("Starting data acquisition task")
 
-            print("All Signal Addresses:", signal_addresses)
+        # MQTT Configuration
+        mqtt_client = mqtt.Client()
+        mqtt_client.on_connect = on_mqtt_connect
+        mqtt_client.on_disconnect = on_mqtt_disconnect
 
-            time.sleep(60)  # Poll every 60 seconds for twin updates
+        mqtt_broker_address = twin.get("mqttBrokerAddress", "")
+        mqtt_broker_port = twin.get("mqttBrokerPort", 1883)
+        mqtt_client.connect(mqtt_broker_address, mqtt_broker_port, 60)
+        mqtt_client.loop_start()
 
-    except Exception as e:
-        print(f"Error: {str(e)}")
+        await collect(twin, my_edge_client, my_message)
+    else:
+        twin = twin_obj
 
-    finally:
-        module_client.disconnect()
+    print("Updated twin")
+
+# Other code...
+
+# Close connections when the module is terminated
+def module_termination_handler(signal, frame):
+    global opcua_client
+    global mqtt_client
+    if opcua_client:
+        opcua_client.disconnect()
+    if mqtt_client:
+        mqtt_client.disconnect()
+    print("IoT Hub Client sample stopped by Edge")
+
+# Set the Edge termination handler
+signal.signal(signal.SIGTERM, module_termination_handler)
+
+# Other code...
